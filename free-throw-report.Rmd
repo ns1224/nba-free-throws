@@ -1,0 +1,230 @@
+---
+title: "Free Throw Visualizations"
+author: "Nicholas Campa"
+date: "2/26/2021"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    theme: united
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+# Import all required libraries
+library(flexdashboard)
+library(plyr); library(dplyr)
+library(ggplot2)
+library(scales)
+library(data.table)
+library(RColorBrewer)
+library(stringr)
+library(viridis)
+library(plotly)
+library(tidyr)
+
+# Assign and store data location and read into dataframe
+freethrows_loc = "/Users/nicholascampa/Desktop/IS460/R_datafiles/free_throws.csv"
+freethrows_df = fread(freethrows_loc)
+
+# Separate Time Remaining into Minutes Remaining and Seconds Remaining columns and remove original column
+freethrows_df = tidyr::separate(freethrows_df, time, c("Minutes_Remaining", "Seconds_Remaining"), 
+                                sep = ":", remove = TRUE)
+
+freethrows_df$Minutes_Remaining = as.numeric(freethrows_df$Minutes_Remaining)
+```
+
+# Introduction 
+
+  The dataset used in this project was provided by Dr. Tallon. It contains data about NBA free throws. The dataset contained 11 columns, one of which (Minutes Remaining), I separated into separate columns. The columns included the season, end result, game ID, period, time remaining, the teams playing, the player shooting, a description of the play, and whether it was playoffs or regular season. There are 618,019 rows, or 618,019 individual free throws from the 2006-2007 season until the 2015-2016 playoffs.  
+
+## Summary Statistics
+
+``` {r}
+summary(freethrows_df)
+```
+There aren't many quantitative fields in this dataset, but there were several eye-opening statistics. Firstly, for the period column, there was a minimum of 1, which is to be expected. However, there was a maximum of 8, meaning there was at least one game that had four overtime periods. The average period was 2.6, again to be expected, as the average period was during halftime between the second and third periods. For the binary shot made variable, the mean is 0.7568 suggesting the free throw percentage of the group hovers around that value.  
+
+#### Extra Descriptive Stats
+```{r}
+length(unique(freethrows_df$player))
+```
+There are 1,098 individual players and 618,019 free throws, which in effect is an average of 562.85 free throws per player. 
+
+```{r}
+length(unique(freethrows_df$game_id))
+```
+There are 12,874 unique game IDs, or individual games in the dataset. On average, there were 1,287 free throws per season spanning the ten included seasons. 
+
+```{r}
+length(unique(freethrows_df$season))
+```
+There are 10 seasons of free throw data, ranging from the 2006-2007 season to the 2015-2016 season.
+
+## Who Took the Most Free Throws?
+```{r, echo=TRUE, warning=FALSE, fig.height=8, fig.width=12, error=FALSE}
+# Grab data frame of player FT frequencies and adjust column names accordingly
+ft_count = data.frame(plyr::count(freethrows_df$player))
+colnames(ft_count) = c("Player", "FTA")
+# Sort by FTA descending
+ft_count = ft_count[order(-ft_count$FTA), ]
+
+# Plot Bar-Chart for Top 10 Players for FTA
+p1 = ggplot(ft_count[1:10,], aes(x = reorder(Player, FTA), y = FTA, fill = as.factor(reorder(Player, -FTA)))) +
+  geom_bar(stat = "identity", position = position_stack(reverse = TRUE)) + 
+  theme_light() +
+  labs(title = "Free Throw Attempts - Top 10 (2006-2016)", x= "", y = "FTA") + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip() + 
+  scale_fill_brewer(palette = "Spectral") + 
+  guides(fill = guide_legend(title = "Player Name")) + 
+  scale_y_continuous(labels = scales::comma)
+p1
+```
+
+This visualization is a horizontal bar chart depicting the top 20 players, ranked by free throw attempts from the seasons included in the data. LeBron tops the list with over 8,000 free throws,  followed somewhat closely by Dwight Howard. In third, lagging by about 1,000 FTA, is Kobe Bryant. Interestingly, Kobe Bryant was drafted 5 years earlier than LeBron, yet lacks significantly in terms of total FTA. I used a ggplot bar chart and the viridis color package to create the visualization. I also sorted the position stack to show the bars in reverse rank, and used a light theme with a coordinate flip with coord_flip function.  
+
+
+## Free Throw Attempts Per Game
+
+```{r, echo=TRUE}
+# Histogram for FTA entire dataset 
+ft_pergame_count = data.frame(plyr::count(freethrows_df$game_id))
+
+p3 = ggplot(ft_pergame_count, aes(freq)) +
+  geom_histogram(binwidth = 5, color = "darkgoldenrod2", fill = "cornflowerblue") + 
+  theme_light() + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  labs(title = "Free Throws Per Game", 
+        x = "FTA", 
+        y = "Frequency") +
+  scale_y_continuous(labels = scales::comma)
+p3
+```
+
+This visualization is a histogram showing the frequencies for total free throws per game. This is a good way to get an understanding of how many free throws happen per game. Most of the games had 45 free throws, some 2,000 of them. It's slightly skewed left, but appears to resemble a normal distribution, which is fascinating, because it embodies the Central Limit Theorem, stating as the amount of observations increases, the tendency of responses to normalize increases. I used ggplot's histogram with a light theme. I also used smaller bins to make the differences more visible.  
+
+## Seasonal Trends for FTs by Period
+```{r, echo=TRUE}
+# Typecast Period to Numeric for filtering
+freethrows_df$period = as.numeric(freethrows_df$period)
+
+# Filter for games that were not overtime and group by period and season
+periods_by_seasons = freethrows_df %>%
+  select(period, season) %>%
+  filter(period <= 4) %>%
+  group_by(period, season) %>%
+  dplyr::summarise(totFT = length(season), .groups = 'keep') %>%
+  data.frame() %>%
+  arrange(season)
+
+# Typecast Period to Factor Type
+periods_by_seasons$period = as.factor(periods_by_seasons$period)
+
+p4 = ggplot(periods_by_seasons, aes(x = period, y = totFT, fill = season)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  theme_light() + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_y_continuous(labels = scales::comma) + 
+  labs(title = "Total Free Throws by Period and Season", 
+       x = "Period", y = "FTA", fill = "Season") +
+  scale_fill_brewer(palette = "Spectral") +
+  facet_wrap(~season, nrow = 2)
+p4
+```
+
+This is a trellis bar plot for free throws attempted by period, by season. As our data ranges over 10 seasons, you can see there has been a decline between the 06-07 and 15-16 seasons, most sharply in the 11-12 season. That year, less than 15,000 total free throws were attempted in the fourth quarter, roughly 2,500 less than the previous year. This is because the NBA season started late due to the NBA lockout. I used RColorBrewer's Spectral palette and a 2x2 facet grid.
+
+## Free Throw Percentage: NBA 2006-2016
+```{r, echo=TRUE}
+# Group dataframe by Make or Miss, summarise, and make a data frame
+total_ft_pct = freethrows_df %>%
+  group_by(shot_made) %>%
+  tally() %>%
+  data.frame()
+# Rename Columns for usability
+total_ft_pct$shot_made = c("Miss", "Made")
+colnames(total_ft_pct) = c("FT_Result", "n")
+
+
+p5 = plot_ly(total_ft_pct, labels = ~FT_Result, values = ~n, type = 'pie', 
+        textposition = "outside", textinfo = "label + percent") %>%
+  layout(title = "NBA FT% (2006-2016)")
+p5
+```
+
+This is a simple pie chart showing the free throw percentage for all free throws taken between the 2006-07 and 2015-16 seasons. The percentage of 75.7% is slightly above the current average of roughly 73%. I used plotly to create this pie chart, sorting by the binary shot made variable. I positioned the text outside of the pie, and labeled with the value and percent.  
+
+
+## How Does the Clock Impact Players at the Line?
+```{r, echo=TRUE}
+# get regular season made ft counts by mins remaining
+regular_madefts = freethrows_df %>%
+  filter(playoffs == "regular" & shot_made == 1 & Minutes_Remaining < 13) %>%
+  select(Minutes_Remaining, shot_made) %>%
+  group_by(Minutes_Remaining) %>%
+  dplyr::summarise(MadeFT = length(Minutes_Remaining), .groups = 'keep') %>%
+  data.frame()
+# get reason miss ft counts by mins remaining
+regular_missfts = freethrows_df %>%
+  filter(playoffs == "regular" & shot_made == 0 & Minutes_Remaining < 13) %>%
+  select(Minutes_Remaining, shot_made) %>%
+  group_by(Minutes_Remaining) %>%
+  dplyr::summarise(MissFT = length(Minutes_Remaining), .groups = 'keep') %>%
+  data.frame()
+# Rename MadeFTs Dataframe object
+regular_season_fts = regular_madefts
+# Add Miss Column to Make DF
+regular_season_fts$MissFT = regular_missfts$MissFT
+regular_season_fts$Percentage = regular_season_fts$MadeFT / (regular_season_fts$MadeFT + regular_season_fts$MissFT)
+# Sort by Mins Remaining descending
+regular_season_fts = regular_season_fts[order(regular_season_fts$Minutes_Remaining, decreasing = TRUE), ]
+
+# get playoffs season made ft counts by mins remaining
+playoffs_madefts = freethrows_df %>%
+  filter(playoffs == "playoffs" & shot_made == 1 & Minutes_Remaining < 13) %>%
+  select(Minutes_Remaining, shot_made) %>%
+  group_by(Minutes_Remaining) %>%
+  dplyr::summarise(MadeFT = length(Minutes_Remaining), .groups = 'keep') %>%
+  data.frame()
+# get reason miss ft counts by mins remaining
+playoffs_missfts = freethrows_df %>%
+  filter(playoffs == "playoffs" & shot_made == 0 & Minutes_Remaining < 13) %>%
+  select(Minutes_Remaining, shot_made) %>%
+  group_by(Minutes_Remaining) %>%
+  dplyr::summarise(MissFT = length(Minutes_Remaining), .groups = 'keep') %>%
+  data.frame()
+# Rename MadeFTs Dataframe object
+playoffs_fts = playoffs_madefts
+# Add Miss Column to Make DF
+playoffs_fts$MissFT = playoffs_missfts$MissFT
+playoffs_fts$Percentage = playoffs_fts$MadeFT / (playoffs_fts$MadeFT + playoffs_fts$MissFT)
+# Sort by Mins Remaining descending
+playoffs_fts = playoffs_fts[order(playoffs_fts$Minutes_Remaining, decreasing = TRUE), ]
+
+# Add Playoffs FT% To Regular Season Dataframe
+regular_season_fts$playoffs_pct = playoffs_fts$Percentage
+# Rename Dataframe for Clarity, usability
+minutes_remaining_percents = regular_season_fts
+colnames(minutes_remaining_percents) = c("Minutes_Remaining", "MadeFT", "MissFT", "Regular_pct", "Playoffs_pct")
+# Typecast Minutes Remaining to Factor 
+minutes_remaining_percents$Minutes_Remaining = as.factor(minutes_remaining_percents$Minutes_Remaining)
+
+p6 = ggplot(minutes_remaining_percents, aes(x = Minutes_Remaining, group = 1)) + 
+  geom_line(aes(y = Regular_pct, color = "Regular Season"), stat = "identity", group = 1) +
+  geom_line(aes(y = Playoffs_pct, color = "Playoffs"), stat = "identity", group = 1) +
+  geom_point(aes(y = Regular_pct), color = "steelblue", size = 2) + 
+  geom_point(aes(y = Playoffs_pct), color = "salmon", size = 2) + 
+  scale_x_discrete(limits = rev(levels(minutes_remaining_percents$Minutes_Remaining))) +
+  scale_y_continuous(labels = scales::percent) + 
+  theme_light() +
+  theme(plot.title = element_text(hjust = 0.5), 
+        legend.title = element_blank()) +
+  labs(title = "FT% by Minutes Remaining", 
+       x = "Minutes Remaining in Period", 
+       y = "FT%") 
+p6
+```
+
+Finally, this multiple line chart shows the free throw percentages as the time passes in a period. It's broken down by game type, regular season or playoffs. At first glance, the regular season has on average a better percentage than the playoffs. I used ggplot's line plot twice, for each game type, and added points via ggplot's point function. I used R's base color palette, chossing steelblue and salmon for the lines, and the same color for the points respectively. I used the scale_x_discrete function to reverse the order of the minutes remaining for viewer ease, as we often prefer to look left to right. I also used a light theme, and a blank legend title to simplify the output. 
