@@ -62,15 +62,14 @@ ft_count = data.frame(plyr::count(freethrows_df$player))
 colnames(ft_count) = c("Player", "FTA")
 ft_count = ft_count[order(-ft_count$FTA), ]
 
-p1 = ggplot(ft_count[1:20,], aes(x = reorder(Player, FTA), y = FTA, fill = as.factor(reorder(Player, -FTA)))) +
-  geom_bar(stat = "identity", position = position_stack(reverse = TRUE)) + 
+p1 = ggplot(ft_count[1:20,], aes(x = reorder(Player, FTA), y = FTA, fill = as.factor(reorder(Player, -FTA))), color = "blue") +
+  geom_bar(stat = "identity", position = position_stack(reverse = TRUE), fill = "#3383FF") + 
   theme_light() +
   labs(title = "Top 20 Free Throw Attempts 06-16", x= "", y = "FTA") + 
-  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(hjust = 0.5), 
+        axis.text.y = element_text(size = 7)) +
   coord_flip() + 
-  scale_fill_viridis_d(option = "E", direction = 1) + 
-  guides(fill = guide_legend(title = "Player Name")) + 
-  scale_y_continuous(labels = scales::comma)
+  guides(fill = guide_legend(title = "Player Name"))
 
 # --------------------FT% by minutes remaining line chart for playoffs / non-playoffs -----------------------------------------
 
@@ -159,6 +158,7 @@ heatmap_df = heatmap_df[1:50, ]
 heatmap_df = heatmap_df[-c(25,38), ]
 missing_row = c("period" = 1,"Minutes_Remaining" = 12, "n" = 0)
 heatmap_df = rbind(heatmap_df, missing_row)
+heatmap_df = heatmap_df %>% drop_na()
 
 
 heatmap_df$period = as.factor(heatmap_df$period)
@@ -200,8 +200,6 @@ p4 = ggplot(periods_by_seasons, aes(x = period, y = totFT, fill = season)) +
   facet_wrap(~season, nrow = 2)
 p4
 
-
-
 # -----------------------------------pie chart for FT% of entire dataset---------------------------------------
 
 total_ft_pct = freethrows_df %>% group_by(shot_made) %>% tally() %>% data.frame()
@@ -232,15 +230,24 @@ ggplot(ft_pergame_count, aes(freq)) +
 
 # -----------------------------------------------Dashboards-------------------------------------------------------
 
-p1 = ggplot(ft_count[1:20,], aes(x = reorder(Player, FTA), y = FTA, fill = as.factor(reorder(Player, -FTA)))) +
-  geom_bar(stat = "identity", position = position_stack(reverse = TRUE)) + 
+p1 = ggplot(ft_count[1:20,], aes(x = reorder(Player, FTA), y = FTA, fill = as.factor(reorder(Player, -FTA))), color = "blue") +
+  geom_bar(stat = "identity", position = position_stack(reverse = TRUE), fill = "#3383FF") + 
   theme_light() +
   labs(title = "Top 20 Free Throw Attempts 06-16", x= "", y = "FTA") + 
-  theme(plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(hjust = 0.5), 
+        axis.text.y = element_text(size = 7)) +
   coord_flip() + 
-  scale_fill_viridis_d(option = "E", direction = 1) + 
-  guides(fill = guide_legend(title = "Player Name")) + 
-  scale_y_continuous(labels = scales::comma)
+  guides(fill = guide_legend(title = "Player Name"))
+
+p1
+
+ggsave(filename = 'top-20-attempts',
+       path = '/Users/nicholascampa/Desktop/IS460/',
+       plot = p1, 
+       device = 'png', 
+       width = 6, height = 4)
+
+
 
 p2 = ggplot(non_playoff_percents, aes(x=Minutes_Remaining, group = 1)) + 
   geom_line(aes(y=percentage, colour = "FT% (Reg. Season)"), stat = "identity", group = 1) + 
@@ -257,15 +264,33 @@ p2 = ggplot(non_playoff_percents, aes(x=Minutes_Remaining, group = 1)) +
        color = "Legend") +
   theme(plot.title = element_text(hjust = 0.5))
 
+p2
+
+ggsave(filename = 'ft-percent-by-mins',
+       path = '/Users/nicholascampa/Desktop/IS460/',
+       plot = p2, 
+       device = 'png', 
+       width = 6, height = 4)
+
+
 p3 = ggplot(heatmap_df, aes(x=period, y=Minutes_Remaining, fill=n)) + 
   geom_tile(color="darkblue") + 
   geom_text(aes(label = scales::comma(n))) + 
   coord_equal(ratio = 0.3) + 
   labs(title = "Heatmap: Free Throw Attempts by Minutes Remaining in Period", 
        x="Period", y="Minutes Remaining in Period", fill = "FTA") + 
-  theme_minimal() + 
+  theme_light() + 
   theme(plot.title = element_text(hjust = 0.5, vjust = 0.2)) + 
   scale_fill_continuous(low="white", high="orange")
+
+p3
+
+ggsave(filename = 'ft-heatmap',
+       path = '/Users/nicholascampa/Desktop/IS460/',
+       plot = p3, 
+       device = 'png', 
+       width = 6, height = 4)
+
 
 p4 = ggplot(periods_by_seasons, aes(x = period, y = totFT, fill = season)) + 
   geom_bar(stat = "identity", position = "dodge") + 
@@ -277,6 +302,14 @@ p4 = ggplot(periods_by_seasons, aes(x = period, y = totFT, fill = season)) +
   scale_fill_brewer(palette = "Spectral") +
   facet_wrap(~season, nrow = 2)
 
+p4
+
+ggsave(filename = 'ft-lattice',
+       path = '/Users/nicholascampa/Desktop/IS460/',
+       plot = p4, 
+       device = 'png', 
+       width = 6, height = 4)
+
 # ggplot
 # plot_type
 # scale x
@@ -287,23 +320,20 @@ p4 = ggplot(periods_by_seasons, aes(x = period, y = totFT, fill = season)) +
 # guides
 # scale fill brewer
 
-
-p1
-p2
-p3
-p4
-p5
-
 library(cowplot)
 
-plot_grid(p1, p2, p3, p4,
+grid = plot_grid(p1, p2, p3, p4,
           nrow = 2)
 
-library(ggpubr)
+ggsave(filename = 'dashboard',
+       path = '/Users/nicholascampa/Desktop/IS460/',
+       plot = grid, 
+       device = 'png', 
+       width = 24, height = 12)
 
-ggarrange(p1, p2, p3, p4, nrow = 2, ncol=2) 
 
-library(flexdashboard)
+
+
 
 
 
